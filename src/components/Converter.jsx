@@ -83,7 +83,12 @@ function canvasToJpegBlob(canvas, quality) {
 
 function detectMobileConstraints() {
   if (typeof navigator === "undefined" || typeof window === "undefined") {
-    return { isMobile: false, skipPreview: false, concurrencyLimit: 2 };
+    return {
+      isMobile: false,
+      lowMemory: false,
+      skipPreview: false,
+      concurrencyLimit: 2,
+    };
   }
 
   const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches;
@@ -97,7 +102,8 @@ function detectMobileConstraints() {
 
   return {
     isMobile,
-    skipPreview: isMobile || lowMemory,
+    lowMemory,
+    skipPreview: lowMemory,
     concurrencyLimit: isMobile || lowMemory ? 1 : 2,
   };
 }
@@ -193,12 +199,13 @@ export default function Converter() {
   const [uploadError, setUploadError] = useState("");
   const [shareError, setShareError] = useState("");
   const fileRef = useRef();
-  const { skipPreview, concurrencyLimit } = detectMobileConstraints();
+  const { skipPreview, lowMemory, concurrencyLimit } =
+    detectMobileConstraints();
   const shareAvailable = canShareFiles();
 
   function handleFiles(list) {
     const selectedFiles = Array.from(list || []);
-    const arr = selectedFiles.filter((f) => isSupportedImageFile(f));
+    const supportedFiles = selectedFiles.filter((f) => isSupportedImageFile(f));
     const invalidFiles = selectedFiles.filter((f) => !isSupportedImageFile(f));
     const invalidCount = invalidFiles.length;
 
@@ -214,8 +221,8 @@ export default function Converter() {
       setUploadError("");
     }
 
-    if (arr.length === 0) return;
-    const mapped = arr.map((f) => ({
+    if (supportedFiles.length === 0) return;
+    const mapped = supportedFiles.map((f) => ({
       file: f,
       preview: null, // will be generated (heic not directly displayable in many browsers)
       convertedBlob: null,
@@ -224,21 +231,23 @@ export default function Converter() {
       status: "idle",
       error: null,
     }));
-    setFiles((prev) => {
-      const baseIndex = prev.length;
-      const next = [...prev, ...mapped];
-      if (!skipPreview) {
-        // generate previews asynchronously on devices that can handle the extra work
-        mapped.forEach((m, i) => {
-          const idx = baseIndex + i;
-          generatePreview(m.file, idx);
+    const baseIndex = files.length;
+
+    setFiles((prev) => [...prev, ...mapped]);
+
+    if (!skipPreview) {
+      // Run preview creation after enqueueing files so fast formats like JPEG
+      // update the already-mounted items instead of racing the state insert.
+      setTimeout(() => {
+        mapped.forEach((item, i) => {
+          generatePreview(item.file, baseIndex + i);
         });
-      }
-      try {
-        if (fileRef.current) fileRef.current.value = "";
-      } catch (e) {}
-      return next;
-    });
+      }, 0);
+    }
+
+    try {
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (e) {}
   }
 
   async function generatePreview(file, idx, q = 0.35) {
@@ -512,10 +521,10 @@ export default function Converter() {
           <div className="text-sm text-slate-400 mt-2">
             Files are converted in your browser. They never leave your device.
           </div>
-          {skipPreview && (
+          {lowMemory && (
             <div className="text-xs text-slate-400 mt-2">
-              On phones, previews are skipped to reduce memory usage and make
-              conversion more reliable.
+              On low-memory devices, previews may be limited to keep conversion
+              stable.
             </div>
           )}
         </div>
