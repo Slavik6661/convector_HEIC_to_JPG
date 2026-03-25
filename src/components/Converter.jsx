@@ -24,6 +24,24 @@ function getFileFormatLabel(file) {
   return "unknown";
 }
 
+function makeUniqueFileName(fileName, usedNames) {
+  const dotIndex = fileName.lastIndexOf(".");
+  const hasExtension = dotIndex > 0;
+  const baseName = hasExtension ? fileName.slice(0, dotIndex) : fileName;
+  const extension = hasExtension ? fileName.slice(dotIndex) : "";
+
+  let candidate = fileName;
+  let counter = 2;
+
+  while (usedNames.has(candidate)) {
+    candidate = `${baseName} (${counter})${extension}`;
+    counter += 1;
+  }
+
+  usedNames.add(candidate);
+  return candidate;
+}
+
 function isSupportedImageFile(file) {
   if (!file) return false;
   const name = file.name || "";
@@ -389,11 +407,15 @@ export default function Converter() {
 
   async function downloadZip() {
     const zip = new JSZip();
+    const usedNames = new Set();
     for (const it of files) {
       if (it.convertedBlob) {
+        const fileName = makeUniqueFileName(
+          it.convertedName || it.file.name.replace(/\.(heic|heif|jpe?g)$/i, ".jpg"),
+          usedNames,
+        );
         zip.file(
-          it.convertedName ||
-            it.file.name.replace(/\.(heic|heif|jpe?g)$/i, ".jpg"),
+          fileName,
           it.convertedBlob,
         );
       }
@@ -546,65 +568,70 @@ export default function Converter() {
             </div>
           )}
         </div>
+        {files.length > 0 ? (
+          <div className="flex items-center justify-between gap-4 max-sm:flex-col">
+            <label className="flex items-center gap-3 max-sm:w-full">
+              <span className="text-sm">JPG Quality:</span>
+              <input
+                type="range"
+                min="0.1"
+                max="1"
+                step="0.01"
+                value={quality}
+                className="range-slider"
+                style={{ "--range-val": `${((quality - 0.1) / 0.9) * 100}%` }}
+                onChange={(e) => {
+                  setQuality(parseFloat(e.target.value));
+                  const el = e.target;
+                  const min = parseFloat(el.min);
+                  const max = parseFloat(el.max);
+                  const val =
+                    ((parseFloat(el.value) - min) / (max - min)) * 100;
+                  el.style.setProperty("--range-val", `${val}%`);
+                }}
+                onInput={(e) => {
+                  const el = e.target;
+                  const min = parseFloat(el.min);
+                  const max = parseFloat(el.max);
+                  const val =
+                    ((parseFloat(el.value) - min) / (max - min)) * 100;
+                  el.style.setProperty("--range-val", `${val}%`);
+                }}
+              />
+              <span className="text-sm w-12 text-right">
+                {Math.round(quality * 100)}%
+              </span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <button
+                className="w-full sm:w-auto px-4 py-3 bg-sky-600 text-white rounded text-center"
+                onClick={convertAll}
+              >
+                Convert All
+              </button>
 
-        <div className="flex items-center justify-between gap-4 max-sm:flex-col">
-          <label className="flex items-center gap-3 max-sm:w-full">
-            <span className="text-sm">JPG Quality:</span>
-            <input
-              type="range"
-              min="0.1"
-              max="1"
-              step="0.01"
-              value={quality}
-              className="range-slider"
-              style={{ "--range-val": `${((quality - 0.1) / 0.9) * 100}%` }}
-              onChange={(e) => {
-                setQuality(parseFloat(e.target.value));
-                const el = e.target;
-                const min = parseFloat(el.min);
-                const max = parseFloat(el.max);
-                const val = ((parseFloat(el.value) - min) / (max - min)) * 100;
-                el.style.setProperty("--range-val", `${val}%`);
-              }}
-              onInput={(e) => {
-                const el = e.target;
-                const min = parseFloat(el.min);
-                const max = parseFloat(el.max);
-                const val = ((parseFloat(el.value) - min) / (max - min)) * 100;
-                el.style.setProperty("--range-val", `${val}%`);
-              }}
-            />
-            <span className="text-sm w-12 text-right">
-              {Math.round(quality * 100)}%
-            </span>
-          </label>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <button
-              className="w-full sm:w-auto px-4 py-3 bg-sky-600 text-white rounded text-center"
-              onClick={convertAll}
-            >
-              Convert All
-            </button>
+              <button
+                className="w-full sm:w-auto px-4 py-3 bg-emerald-500 text-white rounded flex items-center justify-center gap-2"
+                onClick={downloadZip}
+              >
+                Download All as ZIP
+              </button>
 
-            <button
-              className="w-full sm:w-auto px-4 py-3 bg-emerald-500 text-white rounded flex items-center justify-center gap-2"
-              onClick={downloadZip}
-            >
-              Download All as ZIP
-            </button>
-
-            <button
-              className="w-full sm:w-auto px-4 py-3 bg-red-500 text-white rounded text-center"
-              onClick={clearAll}
-            >
-              Clear All
-            </button>
+              <button
+                className="w-full sm:w-auto px-4 py-3 bg-red-500 text-white rounded text-center"
+                onClick={clearAll}
+              >
+                Clear All
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="grid gap-4">
           {files.length === 0 && (
-            <div className="text-sm text-slate-500">No files added yet.</div>
+            <div className="text-sm text-center text-slate-500">
+              No files added yet.
+            </div>
           )}
           {files.map((it, idx) => (
             <div
@@ -612,7 +639,8 @@ export default function Converter() {
               className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-3 border rounded"
             >
               <div className="w-full sm:w-48 h-44 sm:h-36 bg-slate-800 rounded overflow-hidden flex items-center justify-center">
-                {it.convertedUrl || it.preview ? (
+                {it.convertedUrl ||
+                (it.preview && !loadingIds.includes(idx)) ? (
                   <img
                     src={it.convertedUrl || it.preview}
                     alt="preview"
@@ -668,8 +696,9 @@ export default function Converter() {
                       >
                         {loadingIds.includes(idx) ? (
                           <>
-                            <span className="spinner" />
-                            <span className="font-semibold">Converting...</span>
+                            <span className="font-semibold">
+                              in progress...
+                            </span>
                           </>
                         ) : (
                           "Convert"
@@ -702,6 +731,7 @@ export default function Converter() {
                         )}
                       </>
                     )}
+
                     <button
                       onClick={() => removeItem(idx)}
                       className="w-full sm:w-auto px-3 py-2 bg-red-500 text-white rounded"
