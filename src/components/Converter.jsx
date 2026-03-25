@@ -591,7 +591,7 @@ export default function Converter() {
             ref={fileRef}
             type="file"
             multiple
-            disabled={maxFilesTotal ? "true" : ""}
+            disabled={!maxFilesTotal ? "true" : ""}
             accept=".heic,.heif,.jpg,.jpeg,image/heic,image/heif,image/jpeg"
             className="hidden"
             onChange={(e) => handleFiles(e.target.files)}
