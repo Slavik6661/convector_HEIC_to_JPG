@@ -223,6 +223,7 @@ async function checkHeicSupport() {
 }
 
 export default function Converter() {
+  const maxFilesTotal = 30;
   const [files, setFiles] = useState([]); // {file, preview, convertedBlob, convertedUrl, status, error}
   const [quality, setQuality] = useState(0.9);
   const [loadingIds, setLoadingIds] = useState([]);
@@ -236,21 +237,45 @@ export default function Converter() {
 
   function handleFiles(list) {
     const selectedFiles = Array.from(list || []);
-    const supportedFiles = selectedFiles.filter((f) => isSupportedImageFile(f));
-    const invalidFiles = selectedFiles.filter((f) => !isSupportedImageFile(f));
+    const remainingSlots = Math.max(maxFilesTotal - files.length, 0);
+
+    if (remainingSlots === 0) {
+      setUploadError(`You can keep up to ${maxFilesTotal} files in the list.`);
+      try {
+        if (fileRef.current) fileRef.current.value = "";
+      } catch (e) {}
+      return;
+    }
+
+    const trimmedSelectedFiles = selectedFiles.slice(0, remainingSlots);
+    const skippedForLimit = selectedFiles.length - trimmedSelectedFiles.length;
+
+    const supportedFiles = trimmedSelectedFiles.filter((f) =>
+      isSupportedImageFile(f),
+    );
+    const invalidFiles = trimmedSelectedFiles.filter(
+      (f) => !isSupportedImageFile(f),
+    );
     const invalidCount = invalidFiles.length;
+    const messages = [];
 
     if (invalidCount > 0) {
       const invalidFormats = [...new Set(invalidFiles.map(getFileFormatLabel))];
       const invalidFormatsText = invalidFormats.join(", ");
-      setUploadError(
-        invalidCount === selectedFiles.length
+      messages.push(
+        invalidCount === trimmedSelectedFiles.length
           ? `Unsupported format: ${invalidFormatsText}. Please choose HEIC, HEIF, or JPEG files only.`
           : `${invalidCount} file(s) skipped. Unsupported format(s): ${invalidFormatsText}. Only HEIC, HEIF, and JPEG are supported.`,
       );
-    } else {
-      setUploadError("");
     }
+
+    if (skippedForLimit > 0) {
+      messages.push(
+        `${skippedForLimit} file(s) skipped. You can keep up to ${maxFilesTotal} files in the list.`,
+      );
+    }
+
+    setUploadError(messages.join(" "));
 
     if (supportedFiles.length === 0) return;
     const mapped = supportedFiles.map((f) => ({
@@ -552,7 +577,9 @@ export default function Converter() {
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
-          className={`border-2 border-dashed border-slate-200 py-8 px-4 sm:p-6 rounded cursor-pointer text-center hover:border-sky-300 transition ${dragActive ? "drop-active" : ""}`}
+          className={`border-2 border-dashed border-slate-200 py-8 px-4 sm:p-6 rounded cursor-pointer text-center hover:border-sky-300 transition ${dragActive ? "drop-active" : ""}
+          
+          ${files.length >= 30 ? "opacity-50" : "opacity-100"}`}
           onClick={() => fileRef.current.click()}
           role="button"
           tabIndex={0}
@@ -564,13 +591,23 @@ export default function Converter() {
             ref={fileRef}
             type="file"
             multiple
+            disabled={maxFilesTotal ? "true" : ""}
             accept=".heic,.heif,.jpg,.jpeg,image/heic,image/heif,image/jpeg"
             className="hidden"
             onChange={(e) => handleFiles(e.target.files)}
           />
-          <div className="text-lg font-medium text-base sm:text-lg">
-            Drag & Drop HEIC/HEIF/JPEG files here, or tap to select
-          </div>
+
+          {!maxFilesTotal ? (
+            <div className="text-lg font-medium text-base sm:text-lg">
+              Drag & Drop HEIC/HEIF/JPEG files here, or tap to select{" "}
+              {files.length}
+            </div>
+          ) : (
+            <div className="text-lg font-medium text-base sm:text-lg">
+              The limit is 30 files at a time
+            </div>
+          )}
+
           <div className="text-sm text-slate-400 mt-2">
             Files are converted in your browser. They never leave your device.
           </div>
