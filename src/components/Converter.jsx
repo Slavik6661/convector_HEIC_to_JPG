@@ -225,7 +225,7 @@ async function checkHeicSupport() {
 }
 
 export default function Converter() {
-  const maxFilesTotal = 5;
+  const maxFilesTotal = 30;
   const [files, setFiles] = useState([]); // {file, preview, convertedBlob, convertedUrl, status, error}
   const [quality, setQuality] = useState(0.9);
   const [loadingIds, setLoadingIds] = useState([]);
