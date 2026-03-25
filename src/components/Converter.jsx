@@ -579,7 +579,7 @@ export default function Converter() {
           onDrop={onDrop}
           className={`border-2 border-dashed border-slate-200 py-8 px-4 sm:p-6 rounded cursor-pointer text-center hover:border-sky-300 transition ${dragActive ? "drop-active" : ""}
           
-          ${files.length >= 30 ? "opacity-50" : "opacity-100"}`}
+          ${maxFilesTotal ? "opacity-50" : "opacity-100"}`}
           onClick={() => fileRef.current.click()}
           role="button"
           tabIndex={0}
