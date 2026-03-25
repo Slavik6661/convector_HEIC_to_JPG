@@ -268,8 +268,8 @@ export default function Converter() {
       // Generate previews after enqueueing files so fast formats like JPEG
       // update mounted items, while HEIC previews run one-by-one to reduce jank.
       setTimeout(() => {
-        const previewTasks = mapped.map((item, i) => () =>
-          generatePreview(item.file, i),
+        const previewTasks = mapped.map(
+          (item, i) => () => generatePreview(item.file, i),
         );
         runWithConcurrency(previewTasks, 1);
       }, 0);
@@ -425,13 +425,11 @@ export default function Converter() {
     for (const it of files) {
       if (it.convertedBlob) {
         const fileName = makeUniqueFileName(
-          it.convertedName || it.file.name.replace(/\.(heic|heif|jpe?g)$/i, ".jpg"),
+          it.convertedName ||
+            it.file.name.replace(/\.(heic|heif|jpe?g)$/i, ".jpg"),
           usedNames,
         );
-        zip.file(
-          fileName,
-          it.convertedBlob,
-        );
+        zip.file(fileName, it.convertedBlob);
       }
     }
     const content = await zip.generateAsync({ type: "blob" });
@@ -460,6 +458,7 @@ export default function Converter() {
         files: [sharedFile],
         title: sharedFile.name,
         text: "Converted with HEIC to JPG Converter",
+        url: window.location.href,
       });
     } catch (e) {
       if (e?.name === "AbortError") return;
